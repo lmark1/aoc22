@@ -4,7 +4,7 @@
 #include <cctype>
 #include <set>
 #include <string>
-
+#include <limits>
 
 using DepMap     = std::unordered_map<std::string, std::set<std::string>>;
 using SizeMap    = std::unordered_map<std::string, int>;
@@ -15,7 +15,8 @@ void processCommand(const std::vector<std::string>& lines, int& i, DepMap& dep_m
 
   // Handle CD
   if (words[1] == "cd") {
-    auto target = words[2];
+    auto target      = words[2];
+    auto full_target = current_file + words[2];
 
     // Go up
     if (target == "..") {
@@ -23,10 +24,10 @@ void processCommand(const std::vector<std::string>& lines, int& i, DepMap& dep_m
 
       // Regular directory
     } else {
-      dep_map[current_file].insert(target);
-      reverse_map[target] = current_file;
-      size_map[target]    = -1;
-      current_file        = target;
+      dep_map[current_file].insert(full_target);
+      reverse_map[full_target] = current_file;
+      size_map[full_target]    = -1;
+      current_file             = full_target;
     }
 
     // Handle LS
@@ -43,16 +44,17 @@ void processCommand(const std::vector<std::string>& lines, int& i, DepMap& dep_m
         break;
       }
 
-      dep_map[current_file].insert(new_words[1]);
-      reverse_map[new_words[1]] = current_file;
+      auto newdir = current_file + new_words[1];
+      dep_map[current_file].insert(newdir);
+      reverse_map[newdir] = current_file;
 
       // Check if file
       if (new_words[0] != "dir") {
-        size_map[new_words[1]] = aoc_util::get_int(new_words[0]);
+        size_map[newdir] = aoc_util::get_int(new_words[0]);
 
-        // Handle directoryk
+        // Handle directories
       } else {
-        size_map[new_words[1]] = -1;
+        size_map[newdir] = -1;
       }
     }
   }
@@ -64,7 +66,6 @@ std::pair<DepMap, SizeMap> processInput(const std::vector<std::string>& lines) {
   SizeMap    size_map;
 
   std::string current_file = "NULL";
-  size_map[current_file]   = 0;
 
   for (int i = 0; i < lines.size(); i++) {
     processCommand(lines, i, dep_map, size_map, reverse_map, current_file);
@@ -103,15 +104,32 @@ int part1(const std::string& input) {
   auto [dep_map, size_map] = processInput(lines);
 
   int res = 0;
-  dfs(dep_map, size_map, "/", res);
+  dfs(dep_map, size_map, "NULL/", res);
   return res;
 }
 
 int part2(const std::string& input) {
   std::cout << "Part2 for: " << input << "\n";
-  auto lines = aoc_util::get_lines(input);
-  int  res   = 0;
-  return res;
+  auto lines               = aoc_util::get_lines(input);
+  auto [dep_map, size_map] = processInput(lines);
+
+  static constexpr auto TOTAL_SPACE    = 70000000;
+  static constexpr auto REQUIRED_SPACE = 30000000;
+  int                   sol            = 0;
+  const int             total_filesize = dfs(dep_map, size_map, "NULL/", sol);
+  const int             free_space     = TOTAL_SPACE - total_filesize;
+
+  sol = std::numeric_limits<int>::max();
+  for (const auto [file, filesize] : size_map) {
+    if (dep_map[file].empty()) {
+      continue;
+    }
+
+    if (free_space + filesize > REQUIRED_SPACE) {
+      sol = std::min(sol, filesize);
+    }
+  }
+  return sol;
 }
 
 int main() {
