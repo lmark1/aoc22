@@ -12,6 +12,10 @@
 namespace aoc_util
 {
 
+template <typename T> int signum(T val) {
+    return (T(0) < val) - (val < T(0));
+}
+
 template <typename T>
 void sleep(T time) {
   std::this_thread::sleep_for(time);
