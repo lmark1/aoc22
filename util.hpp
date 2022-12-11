@@ -26,7 +26,7 @@ void ClearScreen() {
 }
 
 const auto get_long  = [](const auto &el) { return std::stol(el); };
-const auto get_llong = [](const auto &el) { return std::stol(el); };
+const auto get_llong = [](const auto &el) { return std::stoll(el); };
 const auto get_int   = [](const auto &el) { return std::stoi(el); };
 
 template <typename T>
