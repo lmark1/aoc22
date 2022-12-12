@@ -9,9 +9,17 @@
 #include <ostream>
 #include <list>
 
-using LLI             = long long int;
-using Operation       = std::function<void(LLI&, bool)>;
-using Check           = std::function<bool(LLI)>;
+using LLI = long long int;
+struct Item
+{
+  using Ptr = std::shared_ptr<Item>;
+
+  LLI                          initial_value;
+  std::unordered_map<LLI, LLI> divisor_map;
+};
+
+using Operation       = std::function<void(Item&, bool, LLI)>;
+using Check           = std::function<bool(Item&, bool)>;
 using Action          = std::function<void(bool)>;
 using BinaryOperation = std::function<LLI(LLI, LLI)>;
 
@@ -21,17 +29,17 @@ std::unordered_map<char, BinaryOperation> binary_op_map = {{'*', times}, {'+', s
 
 struct Monkey
 {
-  int            index         = -1;
-  LLI            inspect_count = 0;
-  std::list<LLI> items;
-  Operation      operation;
-  Check          check;
-  Action         action;
+  int                  index         = -1;
+  LLI                  inspect_count = 0;
+  std::list<Item::Ptr> items;
+  Operation            operation;
+  Check                check;
+  Action               action;
 
   friend std::ostream& operator<<(std::ostream& o, Monkey& m) {
     o << "Monkey " << m.index << ": ";
     for (const auto& item : m.items) {
-      o << item << ", ";
+      o << item->initial_value << ", ";
     }
     return o;
   }
@@ -52,36 +60,68 @@ public:
         item = item.substr(0, item.size() - 1);
       }
 
-      new_monkey->items.push_back(aoc_util::get_int(item));
+      auto new_item           = std::make_shared<Item>();
+      new_item->initial_value = aoc_util::get_llong(item);
+      new_monkey->items.push_back(new_item);
     }
 
     // Process operation
     auto operation                     = aoc_util::split(monkey_info.at(2), '=');
     operation                          = aoc_util::split(operation.back(), ' ');
     static constexpr auto old_or_parse = [](const std::string& lhs, LLI value) {
-      LLI res = 0;
+      LLI  res    = 0;
+      bool is_new = true;
       if (lhs == "old") {
-        res = value;
+        is_new = false;
+        res    = value;
       } else {
         res = aoc_util::get_llong(lhs);
       }
-      return res;
+      return std::make_pair(is_new, res);
     };
-    new_monkey->operation = [=](auto& value, bool divide_worry) {
-      LLI lhs = old_or_parse(operation.at(1), value);
-      LLI rhs = old_or_parse(operation.at(3), value);
-      LLI tmp = binary_op_map.at(operation.at(2).front())(lhs, rhs);
+    
+    
+    new_monkey->operation = [operation](Item& item, bool divide_worry, LLI common_divisor) {
+      auto [is_newl, lhs] = old_or_parse(operation.at(1), item.initial_value);
+      auto [is_newr, rhs] = old_or_parse(operation.at(3), item.initial_value);
       if (divide_worry) {
+        LLI tmp = binary_op_map.at(operation.at(2).front())(lhs, rhs);
         tmp /= 3;
+        item.initial_value = tmp;
+        return;
       }
-      value = tmp;
+
+      // Use the common divisor
+      // item.initial_value = binary_op_map.at(operation.at(2).front())(item.initial_value, new_val);
+      // item.initial_value = item.initial_value % common_divisor;
+
+      // Option 2: use the divisor map
+      for (auto& el : item.divisor_map) {
+        auto [is_newl, lhs] = old_or_parse(operation.at(1), el.second);
+        auto [is_newr, rhs] = old_or_parse(operation.at(3), el.second);
+
+        // Figure out the "new value"
+        LLI new_val = lhs;
+        if (is_newr) {
+          new_val = rhs;
+        }
+        el.second = binary_op_map.at(operation.at(2).front())(el.second, new_val);
+        el.second %= el.first;
+      }
     };
 
     // Process test
     auto test         = aoc_util::split(monkey_info.at(3), ' ');
-    new_monkey->check = [=](LLI value) {
-      bool tmp = value % aoc_util::get_llong(test.back()) == 0;
-      return tmp;
+    LLI  test_divisor = aoc_util::get_llong(test.back());
+    m_divisors.push_back(test_divisor);
+    new_monkey->check = [test_divisor](Item& item, bool divide_worry) {
+      if (divide_worry) {
+        return item.initial_value % test_divisor == 0;
+      }
+
+      // Test only the initial value
+      // LLI tmp = item.initial_value % test_divisor;
+      return item.divisor_map[test_divisor] == 0;
     };
 
     // Process action
@@ -90,9 +130,12 @@ public:
     new_monkey->action = [=](bool value) {
       auto item = new_monkey->items.front();
       new_monkey->items.pop_front();
+      // std::cout << "Throw " << item->initial_value << " to Monkey ";
       if (value) {
+        // std::cout << index_true << "\n";
         m_monkeys.at(index_true)->items.push_back(item);
       } else {
+        // std::cout << index_false << "\n";
         m_monkeys.at(index_false)->items.push_back(item);
       }
     };
@@ -116,36 +159,41 @@ public:
     parse_monkey(monkey_info);
   }
 
+  void initialize_divisor_map() {
+    for (auto& monkey : m_monkeys) {
+      for (auto& item : monkey->items) {
+        for (auto divisor : m_divisors) {
+          item->divisor_map[divisor] = item->initial_value % divisor;
+        }
+      }
+    }
+    for (auto divisor : m_divisors) {
+      m_common_divisor *= divisor;
+    }
+  }
+
   LLI solution(const std::string& input, int round_count, bool divide_worry = true) {
     std::cout << "Part1 for: " << input << "\n";
     m_divide_worry = divide_worry;
     auto lines     = aoc_util::get_lines(input);
     parse_monkeys(lines);
+    initialize_divisor_map();
 
     // Process monkeys
     for (int i = 0; i < round_count; i++) {
       for (auto& monkey : m_monkeys) {
         while (!monkey->items.empty()) {
           monkey->inspect_count++;
-          monkey->operation(monkey->items.front(), m_divide_worry);
-          bool result = monkey->check(monkey->items.front());
+          monkey->operation(*monkey->items.front(), m_divide_worry, m_common_divisor);
+          bool result = monkey->check(*monkey->items.front(), m_divide_worry);
           monkey->action(result);
         }
-      }
-
-      if (i == 0 || i == 19 || i == 999) {
-        std::cout << "Round :" << i << "\n";
-        for (auto& monkey : m_monkeys) {
-          std::cout << "Moneky " << monkey->index << " - " << monkey->inspect_count << "\n";
-        }
-        std::cout << "\n";
       }
     }
 
     // Get solution
     std::priority_queue<LLI> pq;
     for (auto& monkey : m_monkeys) {
-      std::cout << monkey->inspect_count << "\n";
       pq.push(monkey->inspect_count);
     }
     LLI res = pq.top();
@@ -156,15 +204,17 @@ public:
 
 private:
   std::vector<std::shared_ptr<Monkey>> m_monkeys;
-  bool                                 m_divide_worry = true;
+  std::vector<LLI>                     m_divisors;
+  LLI                                  m_common_divisor = 1;
+  bool                                 m_divide_worry   = true;
 };
 
 int main() {
-  // std::cout << Solution().solution("input/day11_0.txt", 20) << "\n";
-  // std::cout << Solution().solution("input/day11_1.txt", 20) << "\n";
+  std::cout << Solution().solution("input/day11_0.txt", 20) << "\n";
+  std::cout << Solution().solution("input/day11_1.txt", 20) << "\n";
 
   std::cout << Solution().solution("input/day11_0.txt", 10000, false) << "\n";
-  // std::cout << Solution().solution("input/day11_1.txt", 10000, false) << "\n";
+  std::cout << Solution().solution("input/day11_1.txt", 10000, false) << "\n";
   return 0;
 }
 
