@@ -12,8 +12,9 @@
 namespace aoc_util
 {
 
-template <typename T> int signum(T val) {
-    return (T(0) < val) - (val < T(0));
+template <typename T>
+int signum(T val) {
+  return (T(0) < val) - (val < T(0));
 }
 
 template <typename T>
@@ -58,16 +59,16 @@ std::vector<T> get_numbers(const std::vector<std::string> &lines, F &f) {
 
 template <typename T>
 std::vector<std::vector<T>> get_subsets(const std::vector<T> &set) {
-  auto			      n = pow(2, set.size()) - 1;
+  auto                        n = pow(2, set.size()) - 1;
   std::vector<std::vector<T>> res;
   for (auto i = 0; i < n; i++) {
-    auto	   binary_str = std::bitset<128>(i).to_string();
+    auto           binary_str = std::bitset<128>(i).to_string();
     std::vector<T> subset;
-    auto	   set_iter = 0;
+    auto           set_iter = 0;
     for (auto j = binary_str.size() - 1; j >= binary_str.size() - set.size(); j--) {
       char check = binary_str.at(j);
       if (check == '1') {
-	subset.push_back(set.at(set_iter));
+        subset.push_back(set.at(set_iter));
       }
       set_iter++;
     }
@@ -83,8 +84,8 @@ std::vector<std::vector<T>> get_subsets(const std::vector<T> &set) {
 }
 
 std::vector<std::string> get_lines(const std::string &input_file) {
-  std::ifstream		   file(input_file);
-  std::string		   str;
+  std::ifstream            file(input_file);
+  std::string              str;
   std::vector<std::string> lines;
   while (std::getline(file, str)) {
     lines.emplace_back(str);
@@ -94,8 +95,8 @@ std::vector<std::string> get_lines(const std::string &input_file) {
 
 std::vector<std::string> split(const std::string &s, char delimiter) {
   std::vector<std::string> tokens;
-  std::string		   token;
-  std::istringstream	   tokenStream(s);
+  std::string              token;
+  std::istringstream       tokenStream(s);
   while (std::getline(tokenStream, token, delimiter)) {
     tokens.push_back(token);
   }
